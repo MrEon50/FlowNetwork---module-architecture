@@ -1,166 +1,98 @@
-# FlowNetwork---module-architecture-prototype of an innovative neural network...
+# FlowNetwork — Module Presentation
 
-# 🚀 FlowNetwork - Complete Module for a Revolutionary Architecture
+FlowNetwork is an experimental LLM module that combines pattern-based flow routing with attention mechanisms and long-term memory. The goal is to handle long contexts at a lower computational cost.
 
-## 📦 One File, Complete Solution
+---
 
-**`flownetwork.py`** - Everything in one file:
-- ✅ Complete Flow Network V2 implementation
-- ✅ Optimized algorithms (vectorized operations)
-- ✅ Production-ready code
-- ✅ Comprehensive benchmarking
-- ✅ Documentation and use cases
+## Key Components
 
-## 🎯 Key Benchmark Results
+* **FlowLayer** — Generates reduced, multidimensional flow patterns and assembles them into a token-token flow matrix. It includes batched sparsity (top-k) and intensity modulation.
+* **EnhancedFlowLayer** — FlowLayer + self-/cross-attention + (optional) memory bank integration.
+* **ContextAwareFlowRouter** — Adapts sparsity and routing based on context features and window size (sliding windows for long sequences).
+* **FlowMemoryNetwork** — Buffer/memory with secure (buffer) updates, read mechanisms, and EMA updates.
+* **FlowNetwork** — the main wrapper combining embeddings, the EnhancedFlowLayer stack, and head to logits.
+* **EnhancedFlowTransformer** — an alternative integration of Flow + Transformer, with adaptive head count for dimension compatibility.
 
-### **Spectacular Parameter Efficiency:**
-```
-✨ 6.0M parameters - Ultra-efficient architecture
-🚀 4,187 tokens/sec inference - Production-ready speed
-💾 22.9MB model size - Edge-deployment ready
-🎯 Pattern entropy: 2.001 - Rich flow diversity
-⚡ Stable training with loss: 7.160
+---
 
-### **Comparison with Traditional Architectures:**
-| Metrics | FlowNetwork | Traditional | Improvement |
-|- ... ## 🏗️ Architecture - Key Innovations
+## Key Features and Design Decisions
 
-### 1. **AdaptiveFlowRouter** 🧠
-```python
-# Instead of full matrices (O(d_model²)):
-flow_matrix = self.flow_generator(x) # 678M parameters
+* **Pattern-based routing**: Instead of dense, fully attentional matrices, a set of patterns (patterns) is used, mixed with weights per token, which reduces parameterization.
+* **Adaptive sparsity**: multi-level top-k selection performed in batches to reduce allocations and speed up operations for long sequences.
+* **Memory as buffer**: memory_bank registered as a buffer (`register_buffer`) and updated with `with torch.no_grad()` to maintain autograd safety. * **Parameter safety**: validation of critical parameters (vocab_size, d_model, num_layers) and the `adjust_num_heads` helper for adjusting the number of attention heads.
 
-# Pattern-based generation (O(num_patterns)):
-pattern_weights = self.pattern_selector(x) # 6M parameters
-flow_matrix = torch.einsum('bsp,pij->bsij', pattern_weights, self.flow_patterns)
-```
+* **Fallbacks and logging**: defensive JIT calls, safe tensor-to-int conversions (`safe_tensor_to_int`), and logs about automatic adjustments.
 
-**Benefits:**
-- 99.1% parameter reduction
-- Preserved expressiveness
-- Vectorized operations (no loops)
+---
 
-### 2. **FlowLayer** ⚡
-```python
-class FlowLayer(nn.Module): 
-def __init__(self, input_dim, output_dim, num_patterns=8): 
-self.flow_router = AdaptiveFlowRouter(input_dim, output_dim, num_patterns) 
-self.bias = nn.Parameter(torch.zeros(output_dim)) 
-self.layer_norm = nn.LayerNorm(output_dim) 
+## Quick Start Guide
 
-def forward(self, x): 
-flow_matrix, metrics = self.flow_router(x) 
-output = torch.einsum('bsij,bsj->bsi', flow_matrix, x) 
-return self.layer_norm(output + self.bias), metrics
+1. Requirements:
+
+* Python 3.8+
+* PyTorch 1.12+ (CUDA recommended if testing on GPU)
+2. Place `flownetwork.py` in the project and import:
+
+```py
+from flownetwork import FlowNetwork, EnhancedFlowTransformer
 ```
 
-**Key Features:**
-- Memory-efficient processing
-- Adaptive sparsity (10% of active connections)
-- Rich metrics collection
+3. Sample initialization:
 
-### 3. **FlowNetwork** 🌐
-```python
-class FlowNetwork(nn.Module): 
-def __init__(self, vocab_size, d_model=512, num_layers=6, num_patterns=8): 
-# Embeddings with flow mixing 
-self.embedding_flow = FlowLayer(d_model * 2, d_model, num_patterns) 
-
-# Stack of flow layers 
-self.flow_layers = nn.ModuleList([ 
-FlowLayer(d_model, d_model, num_patterns) for _ in range(num_layers) 
-]) 
-
-# Output projection 
-self.output_flow = FlowLayer(d_model, vocab_size, num_patterns)
+```py
+model = FlowNetwork(vocab_size=30000, d_model=512, num_layers=8, max_seq_len=2048)
+ids = torch.randint(0, 30000, (2, 128))
+logits, metrics = model(ids)
 ```
 
-**Architectural advantages:**
-- Unified flow-based processing
-- Global flow gate control
-- Scalable design (3-12 layers)
+---
 
-## 📊 Performance Deep Dive
+## API — Most important classes and methods
 
-### **Inference Performance** 🚀
-```
-Average time: 244.59 ms (batch=8, seq_len=128)
-Throughput: 4,187 tokens/sec
-Peak memory: 3,340 MB
-```
+* `FlowLayer(input_dim, output_dim, num_patterns, base_sparsity=0.1)` 
 
-**Analysis:**
-- **Competitive speed** - comparable to BERT-Base
-- **Low memory footprint** - 3x less than standard models
-- **Predictable scaling** - linear increase with sequence length
+* `forward(x)` → `(flow_matrix, metrics)`
+* `EnhancedFlowLayer(input_dim, output_dim, num_patterns, num_heads, ...)` 
 
-### **Training Performance** 🎯
-```
-Training throughput: 3,455 tokens/sec
-Final loss: 7,160 (stable convergence)
-Pattern entropy: 2,001 (excellent diversity)
-```
+* integrates attention and memory
+* `FlowMemoryNetwork(d_model, memory_size, num_memory_heads)` 
 
-**Key observations:**
-- **Stable training** - loss converges smoothly
-- **Rich pattern diversity** - 50% of maximum entropy
-- **Efficient backpropagation** - gradient clipping works well
+* `forward(x, update_memory=True)` → `(out, metrics)`
+* `FlowNetwork(...)` and `EnhancedFlowTransformer(...)` - complete models with `.forward(input_ids)` returning `(logits, metrics)`
 
-### **Memory Efficiency** 💾
-```
-Model size: 22.9MB (vs 2,590MB traditional)
-Peak GPU memory: 3.3GB (vs >10GB traditional)
-Parameter efficiency: 99.1% reduction
-```
+---
 
-**Production implications:**
-- **Edge deployment ready** - fits on mobile devices
-- **Cost-effective training** - 3x less GPU memory
-- **Fast model loading** - 23MB vs 2.6GB
+## Testing and validation (recommended)
 
-## 🎯 Use in Practice
+* Run unit tests for the combination `(d_model, num_heads)` e.g., (64,8), (65,8), (128,12). Verify that `adjust_num_heads` returns a reasonable value and that layers initialize without exception.
+* Forward sanity check for short batches and 32/128/512 sequences.
+* Memory update test: check for deterministic updates and no injections into the gradient graph.
+* Benchmark: throughput tokens/sec and peak memory (`torch.cuda.max_memory_allocated()`), comparison with the baseline Transformer.
 
-### **Basic Use:**
-```python
-from flownetwork import FlowNetwork, train_flow_network, benchmark_flow_network
+--
 
-# Create a model
-model = FlowNetwork(vocab_size=10000, d_model=512, num_layers=6)
+## Known limitations and recommendations before production
 
-#Benchmark
-results = benchmark_flow_network(vocab_size=10000, d_model=512)
+* Standardize all tensor→int conversion helpers (file partially fixed, fragmented locations still possible). Required: Review the entire file and replace the direct `int(tensor)`. * Remove duplicate helpers (e.g., if `_find_compatible_num_heads` appears) and keep a single `adjust_num_heads` implementation.
+* Add CIs that run unit tests and benchmarks on target hardware to confirm declared results.
+* Limit and document automatic parameter adjustments (logging + clear message to the user).
 
-#Training
-dummy_data = create_dummy_data(10000, 128, 8, 10)
-train_flow_network(model, dummy_data, num_epochs=5)
-```
+---
 
-### **Advanced Configuration:**
-```python
-# For edge deployment
-model_small = FlowNetwork( 
-vocab_size=5000, 
-d_model=256,
-num_layers=3,
-num_patterns=4 # Fewer patterns = smaller model
-)
+## Changelog (important fixes made)
 
-# For high-performance
-model_large = FlowNetwork(
-vocab_size=50000,
-d_model=768,
-num_layers=8,
-num_patterns=16 # More patterns = more expressiveness
-)
-```
+* `global_memory` changed from `nn.Parameter` to `register_buffer`.
+* Critical `int(...)` casts replaced with `safe_tensor_to_int` in key places.
+* `EnhancedFlowTransformer` output_head matches `num_heads` with `adjust_num_heads(vocab_size, num_heads)` to avoid an `embed_dim % num_heads` error.
+* Batched top-k and scatter in sparsity locations.
+* Memory updates performed in `with torch.no_grad()` with `.detach().clone()` and bound checks.
 
-### **Production Deployment:**
-```python
-# Model quantization
-import torch.quantization as quant
-model_int8 = quant.quantize_dynamic(model, {nn.Linear}, dtype=torch.qint8)
-# Expected: 4x smaller size, 2-3x faster CPU inference
+---
 
-# Mixed precision training
-from torch.cuda.amp import autocast, GradScaler
-sca
+## Recommended Next Steps
+
+1. Run full unit and integration tests in CI.
+2. Add API documentation and a simple end-to-end demonstration (sample script).
+3. Consider 4/8-bit quantization and distributed training if the goal is production.
+
+---
