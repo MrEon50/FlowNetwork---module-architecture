@@ -1,5 +1,5 @@
 # FlowNetwork — Module Presentation
-[Nowszy projekt:](https://github.com/MrEon50/Flow-Network)
+[Nowszy projekt Flow_Network w użyciu](https://github.com/MrEon50/Flow-Network)
 
 FlowNetwork is an experimental LLM module that combines pattern-based flow routing with attention mechanisms and long-term memory. The goal is to handle long contexts at a lower computational cost.
 
